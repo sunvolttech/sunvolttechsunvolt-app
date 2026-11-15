@@ -1507,26 +1507,39 @@ def _sv_patch_sunvolt_v2026():
                 btn.configure(fg_color=colors.get(m, "#00897B") if m == mode else "#2B2B2B", text_color="black" if (m == mode and m == "Sun_King") else "white")
 
     _orig_switch = SunvoltApp.switch_engineer_subpage
+    
     def new_switch_engineer_subpage(self, page_key):
         _orig_switch(self, page_key)
-        if page_key == "lab" and hasattr(self, 'hw_mode_buttons') and "Sun_King" not in self.hw_mode_buttons:
-            parent_row = list(self.hw_mode_buttons.values()).master
-            for b in self.hw_mode_buttons.values():
-                b.destroy()
-            self.hw_mode_buttons.clear()
-            row2 = ctk.CTkFrame(parent_row.master, fg_color="transparent")
-            row2.pack(anchor="w", pady=(2, 4), after=parent_row)
-            row1_modes = [("📱 Phone", "Phone"), ("💻 Laptop", "Laptop"), ("⚡ Inverter", "Inverter"), ("☀️ CC", "Charge_Controller")]
-            row2_modes = [("🔋 Sun King", "Sun_King"), ("🧵 Sewing", "Sewing_Machine"), ("🌐 Universal", "Universal_Unknown")]
-            for lbl, mode_val in row1_modes:
-                btn = ctk.CTkButton(parent_row, text=lbl, width=95, height=28, fg_color="#2B2B2B", font=ctk.CTkFont(size=11, weight="bold"), command=lambda m=mode_val: self.set_hw_mode(m))
-                btn.pack(side="left", padx=3)
-                self.hw_mode_buttons[mode_val] = btn
-            for lbl, mode_val in row2_modes:
-                btn = ctk.CTkButton(row2, text=lbl, width=115, height=28, fg_color="#2B2B2B", font=ctk.CTkFont(size=11, weight="bold"), command=lambda m=mode_val: self.set_hw_mode(m))
-                btn.pack(side="left", padx=3)
-                self.hw_mode_buttons[mode_val] = btn
-            self.set_hw_mode(getattr(self, 'selected_hw_mode', 'Phone'))
+        if page_key == "lab":
+            self.hw_mode_buttons = {}
+            def _find_mode_row(parent):
+                for child in parent.winfo_children():
+                    if isinstance(child, ctk.CTkFrame):
+                        btns = [w for w in child.winfo_children() if isinstance(w, ctk.CTkButton)]
+                        if any("Phone" in b.cget("text") or "Laptop" in b.cget("text") for b in btns):
+                            return child
+                    res = _find_mode_row(child)
+                    if res:
+                        return res
+                return None
+
+            parent_row = _find_mode_row(self.eng_content_area)
+            if parent_row:
+                for b in parent_row.winfo_children():
+                    b.destroy()
+                row2 = ctk.CTkFrame(parent_row.master, fg_color="transparent")
+                row2.pack(anchor="w", pady=(2, 4), after=parent_row)
+                row1_modes = [("📱 Phone", "Phone"), ("💻 Laptop", "Laptop"), ("⚡ Inverter", "Inverter"), ("☀️ CC", "Charge_Controller")]
+                row2_modes = [("🔋 Sun King", "Sun_King"), ("🧵 Sewing", "Sewing_Machine"), ("🌐 Universal", "Universal_Unknown")]
+                for lbl, mode_val in row1_modes:
+                    btn = ctk.CTkButton(parent_row, text=lbl, width=95, height=28, fg_color="#2B2B2B", font=ctk.CTkFont(size=11, weight="bold"), command=lambda m=mode_val: self.set_hw_mode(m))
+                    btn.pack(side="left", padx=3)
+                    self.hw_mode_buttons[mode_val] = btn
+                for lbl, mode_val in row2_modes:
+                    btn = ctk.CTkButton(row2, text=lbl, width=115, height=28, fg_color="#2B2B2B", font=ctk.CTkFont(size=11, weight="bold"), command=lambda m=mode_val: self.set_hw_mode(m))
+                    btn.pack(side="left", padx=3)
+                    self.hw_mode_buttons[mode_val] = btn
+                self.set_hw_mode(getattr(self, 'selected_hw_mode', 'Phone'))
 
     def new_open_fullscreen_pcb(self):
         win = ctk.CTkToplevel(self)
@@ -1559,11 +1572,26 @@ def _sv_patch_sunvolt_v2026():
     SunvoltApp.action_open_fullscreen_pcb = new_open_fullscreen_pcb
     _orig_rec = SunvoltApp.show_reception_view
     def new_show_reception_view(self):
-            _orig_rec = SunvoltApp.show_reception_view
-    def new_show_reception_view(self):
         _orig_rec(self)
-        if hasattr(self, 'rec_status_listbox') and not hasattr(self, 'dep_choice'):
+        # 1. Add NIN input field on the Left Registration Form
+        if hasattr(self, 'entry_dev_fault') and not hasattr(self, 'entry_cust_nin'):
+            form = self.entry_dev_fault.master
+            self.entry_cust_nin = ctk.CTkEntry(form, width=380, placeholder_text="6. Lambar NIN (Optional — don tsaro & sauƙin bincike)...")
+            self.entry_cust_nin.pack(anchor="w", padx=20, pady=6, after=self.entry_dev_fault)
+
+        # 2. Add Ticket # / NIN Customer Lookup Bar & Post-Quote Deposit Box on the Right Panel
+        if hasattr(self, 'rec_status_listbox') and not hasattr(self, 'entry_rec_lookup'):
             right_panel = self.rec_status_listbox.master
+
+            lookup_box = ctk.CTkFrame(right_panel, fg_color="#0D2137", corner_radius=8)
+            lookup_box.pack(fill="x", padx=15, pady=(6, 4), before=self.rec_status_listbox)
+            ctk.CTkLabel(lookup_box, text="🪪 Bincika Kwastoma (Ticket No. ko NIN):", font=ctk.CTkFont(size=12, weight="bold"), text_color="#64FFDA").pack(anchor="w", padx=10, pady=(6, 2))
+            l_row = ctk.CTkFrame(lookup_box, fg_color="transparent")
+            l_row.pack(fill="x", padx=10, pady=(2, 8))
+            self.entry_rec_lookup = ctk.CTkEntry(l_row, width=250, placeholder_text="Shigar da Ticket # (SV-101) ko NIN...")
+            self.entry_rec_lookup.pack(side="left", padx=(0, 6))
+            ctk.CTkButton(l_row, text="🔍 Fito da Bayanai", width=135, fg_color="#2296F3", font=ctk.CTkFont(weight="bold"), command=self.action_lookup_customer_by_ticket_or_nin).pack(side="left")
+
             dep_box = ctk.CTkFrame(right_panel, fg_color="#1B2631", corner_radius=8)
             dep_box.pack(fill="x", padx=15, pady=(6, 10))
             ctk.CTkLabel(dep_box, text="💰 Karɓar Deposit (Bayan Engineer Ya Sa Farashi):", font=ctk.CTkFont(size=12, weight="bold"), text_color="#FFB300").pack(anchor="w", padx=10, pady=(6, 2))
@@ -1575,6 +1603,66 @@ def _sv_patch_sunvolt_v2026():
             self.entry_deposit = ctk.CTkEntry(row, width=115, placeholder_text="Amount (₦)...", state="disabled", fg_color="#1E1E1E")
             self.entry_deposit.pack(side="left", padx=(0, 6))
             ctk.CTkButton(row, text="💾 Save", width=70, fg_color="#00E676", text_color="black", font=ctk.CTkFont(weight="bold"), command=self.action_save_post_quote_deposit).pack(side="left")
+
+    _orig_sub_nin = SunvoltApp.action_submit_order
+    def new_submit_with_nin(self):
+        nin_val = self.entry_cust_nin.get().strip() if hasattr(self, 'entry_cust_nin') else ""
+        _orig_sub_nin(self)
+        if SUNVOLT_JOB_QUEUE:
+            SUNVOLT_JOB_QUEUE[-1]["nin"] = nin_val or "N/A"
+            save_sunvolt_local_data()
+        if hasattr(self, 'entry_cust_nin'):
+            self.entry_cust_nin.delete(0, tk.END)
+
+    def new_lookup_customer_ticket_nin(self):
+        query = self.entry_rec_lookup.get().strip().lower()
+        if not query:
+            self.lbl_rec_feedback.configure(text="⚠️ Rubuta Ticket No. (misali SV-101) ko lambar NIN a akwatin nema!", text_color="#FF9100")
+            return
+        found = None
+        state_lbl = ""
+        for j in SUNVOLT_JOB_QUEUE:
+            if query in j.get("ticket_id", "").lower() or (j.get("nin", "") != "N/A" and query in j.get("nin", "").lower()) or query in j.get("phone", "").lower():
+                found = j
+                state_lbl = f"⏳ YANA CIKIN SHAGO ({j.get('status', 'Pending').upper()})"
+                break
+        if not found:
+            for j in SUNVOLT_HISTORY_ARCHIVE:
+                if query in j.get("ticket_id", "").lower() or (j.get("nin", "") != "N/A" and query in j.get("nin", "").lower()) or query in j.get("phone", "").lower():
+                    found = j
+                    state_lbl = "✅ AN GAMA GYARA (COMPLETED)"
+                    break
+        if not found:
+            self.lbl_rec_feedback.configure(text=f"❌ Ba a sami wani kwastoma mai '{query.upper()}' a rumbun bayanan manhajar ba.", text_color="#FF5252")
+            return
+
+        quote = float(found.get("quote", 0.0))
+        dep = float(found.get("deposit", 0.0))
+        bal = max(0.0, quote - dep)
+        popup = ctk.CTkToplevel(self)
+        popup.title(f"🪪 BAYANAN KWASTOMA — #{found['ticket_id']}")
+        popup.geometry("480x420")
+        popup.attributes("-topmost", True)
+        ctk.CTkLabel(popup, text=f"🪪 CIKAKKEN BAYANIN KWASTOMA (#{found['ticket_id']})", font=ctk.CTkFont(size=16, weight="bold"), text_color="#64FFDA").pack(pady=(14, 6))
+        box = tk.Text(popup, width=54, height=16, bg="#111111", fg="#E0F2F1", font=("Consolas", 11), bd=10, relief="flat")
+        box.pack(padx=16, pady=6)
+        info = (
+            f"• Halin da Aikin Yake: {state_lbl}\n"
+            f"• Ticket Number:       #{found['ticket_id']}\n"
+            f"• Sunan Kwastoma:      {found['customer']}\n"
+            f"• Lambar Waya:         {found['phone']}\n"
+            f"• Lambar NIN:          {found.get('nin', 'N/A')}\n"
+            f"--------------------------------------------------\n"
+            f"• Sunan Na'ura:        {found['model']}\n"
+            f"• IMEI / Serial:       {found.get('imei', 'N/A')}\n"
+            f"• Matsalar da Aka Kawo:{found['fault']}\n"
+            f"--------------------------------------------------\n"
+            f"• Jimillar Kuɗi:       ₦{quote:,.2f}\n"
+            f"• Deposit da Aka Biya: ₦{dep:,.2f}\n"
+            f"• Ragowar Bashi (Due): ₦{bal:,.2f}\n"
+        )
+        box.insert(tk.END, info)
+        ctk.CTkButton(popup, text="✅ Rufe (Close)", width=140, fg_color="#00E676", text_color="black", font=ctk.CTkFont(weight="bold"), command=popup.destroy).pack(pady=8)
 
     def new_toggle_deposit(self, choice):
         if "Paid" in choice:
@@ -1610,8 +1698,387 @@ def _sv_patch_sunvolt_v2026():
         self.refresh_reception_status_list()
 
     SunvoltApp.show_reception_view = new_show_reception_view
+    SunvoltApp.action_submit_order = new_submit_with_nin
+    SunvoltApp.action_lookup_customer_by_ticket_or_nin = new_lookup_customer_ticket_nin
     SunvoltApp.toggle_deposit_input = new_toggle_deposit
     SunvoltApp.action_save_post_quote_deposit = new_save_post_quote_deposit
+    _orig_hist_sel = SunvoltApp.on_select_history_job
+    def new_on_select_history_job(self, event=None):
+        _orig_hist_sel(self, event)
+        if hasattr(self, 'history_listbox') and self.history_listbox.curselection():
+            idx = self.history_listbox.curselection()
+            cache = getattr(self, 'filtered_history_cache', None) or SUNVOLT_HISTORY_ARCHIVE
+            if 0 <= idx < len(cache):
+                self.selected_history_job = cache[idx]
+
+    def _get_active_receipt_job_and_text(self):
+        job = getattr(self, 'selected_history_job', None)
+        if not job and hasattr(self, 'history_listbox') and self.history_listbox.curselection():
+            idx = self.history_listbox.curselection()
+            cache = getattr(self, 'filtered_history_cache', None) or SUNVOLT_HISTORY_ARCHIVE
+            if 0 <= idx < len(cache):
+                job = cache[idx]
+                self.selected_history_job = job
+        if not job and SUNVOLT_HISTORY_ARCHIVE:
+            job = SUNVOLT_HISTORY_ARCHIVE[-1]
+        if not job:
+            return None, ""
+        quote = float(job.get('quote', 0.0))
+        dep = float(job.get('deposit', 0.0))
+        bal = max(0.0, quote - dep)
+        rcpt = (
+            "==========================================\n"
+            "      ⚡ SUNVOLT TECH HUB — KASHERE ⚡      \n"
+            "   Electronics, Solar & Mobile Lab, Gombe \n"
+            "==========================================\n"
+            f"Ticket No:   #{job['ticket_id']}\n"
+            f"Customer:    {job['customer']}\n"
+            f"Phone:       {job['phone']}\n"
+            f"NIN:         {job.get('nin', 'N/A')}\n"
+            "------------------------------------------\n"
+            f"Device:      {job['model']}\n"
+            f"IMEI/Serial: {job.get('imei', 'N/A')}\n"
+            f"Fault Fixed: {job['fault']}\n"
+            "------------------------------------------\n"
+            f"Total Cost:  NGN {quote:,.2f}\n"
+            f"Deposit:     NGN {dep:,.2f}\n"
+            f"Balance Due: NGN {bal:,.2f}\n"
+            "Status:      PAID & COMPLETED ✅\n"
+            "==========================================\n"
+            "   Thank you for trusting Sunvolt Tech!   \n"
+        )
+        return job, rcpt
+
+    def new_trigger_print_view(self):
+        job, rcpt = _get_active_receipt_job_and_text(self)
+        if not job:
+            if hasattr(self, 'lbl_print_status'):
+                self.lbl_print_status.configure(text="⚠️ Babu tsohon aiki a cikin History tukuna!", text_color="#FF9100")
+            return
+        if hasattr(self, 'txt_receipt'):
+            self.txt_receipt.delete("1.0", tk.END)
+            self.txt_receipt.insert(tk.END, rcpt)
+        win = ctk.CTkToplevel(self)
+        win.title(f"🧾 OFFICIAL RECEIPT PREVIEW — #{job['ticket_id']}")
+        win.geometry("450x500")
+        win.attributes("-topmost", True)
+        ctk.CTkLabel(win, text=f"🧾 RECEIPT PREVIEW (#{job['ticket_id']})", font=ctk.CTkFont(size=15, weight="bold"), text_color="#00E676").pack(pady=(12, 6))
+        box = tk.Text(win, width=46, height=20, bg="#FAFAFA", fg="black", font=("Courier", 10), bd=10, relief="flat")
+        box.pack(padx=16, pady=6)
+        box.insert(tk.END, rcpt)
+        ctk.CTkButton(win, text="🖨️ Print Receipt Now", width=180, height=36, fg_color="#00E676", text_color="black", font=ctk.CTkFont(weight="bold"), command=self.action_direct_print_receipt).pack(pady=8)
+
+    SunvoltApp.on_select_history_job = new_on_select_history_job
+    SunvoltApp.action_trigger_print_view = new_trigger_print_view
+    def new_open_fullscreen_ai_diag(self):
+        win = ctk.CTkToplevel(self)
+        win.title("🔍 SUNVOLT AI DIAGNOSTICS — FULL-SIZE PCB & FAULT REPORT")
+        win.geometry("1040x660")
+        win.attributes("-topmost", True)
+
+        ctk.CTkLabel(win, text="🗺️ FULL-SIZE PCB FAULT PINPOINT & AI REPAIR GUIDE", font=ctk.CTkFont(size=16, weight="bold"), text_color="#00E676").pack(pady=(10, 6))
+
+        split = ctk.CTkFrame(win, fg_color="transparent")
+        split.pack(fill="both", expand=True, padx=14, pady=(0, 12))
+        split.grid_columnconfigure(0, weight=1)
+        split.grid_columnconfigure(1, weight=1)
+
+        # Left: Large 520x500 PCB Visual Canvas
+        left_box = ctk.CTkFrame(split, fg_color="#082E19", corner_radius=8)
+        left_box.grid(row=0, column=0, padx=(0, 8), sticky="nsew")
+        big_canvas = tk.Canvas(left_box, width=520, height=500, bg="#082E19", highlightthickness=2, highlightbackground="#00E676")
+        big_canvas.pack(padx=10, pady=10, expand=True)
+
+        d = getattr(self, 'last_ai_diag_data', None)
+        if d:
+            self.draw_base_pcb_map(d.get("hx"), d.get("hy"), d.get("part", ""), d.get("ref", ""), d.get("meter", ""), target_canvas=big_canvas, w=520, h=500)
+            rep_txt = d.get("report", "")
+        else:
+            self.draw_base_pcb_map(target_canvas=big_canvas, w=520, h=500)
+            rep_txt = "No scan run yet. Run 'AI Scan' first to highlight the exact fault on the board."
+
+        # Right: Dedicated Scrollable AI Diagnosis & Repair Steps Panel
+        right_box = ctk.CTkFrame(split, fg_color="#111111", corner_radius=8)
+        right_box.grid(row=0, column=1, padx=(8, 0), sticky="nsew")
+        ctk.CTkLabel(right_box, text="📋 Cikakken Rahoton AI & Matakan Gyara:", font=ctk.CTkFont(size=13, weight="bold"), text_color="#FFB300").pack(anchor="w", padx=12, pady=(10, 4))
+
+        rep_frame = tk.Frame(right_box, bg="#111111")
+        rep_frame.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        vscroll = tk.Scrollbar(rep_frame, orient="vertical")
+        vscroll.pack(side="right", fill="y")
+
+        txt_zoom = tk.Text(rep_frame, bg="#111111", fg="#E0F2F1", font=("Consolas", 11), wrap="word", bd=6, relief="flat", yscrollcommand=vscroll.set)
+        txt_zoom.pack(side="left", fill="both", expand=True)
+        vscroll.config(command=txt_zoom.yview)
+        txt_zoom.insert(tk.END, rep_txt)
+
+    SunvoltApp.action_open_fullscreen_ai_diag = new_open_fullscreen_ai_diag
+    # 1. One-Click WhatsApp Receipt & 30-Day Warranty Status in History Preview
+    _orig_prev = SunvoltApp.action_trigger_print_view
+    def new_preview_with_whatsapp_and_warranty(self):
+        _orig_prev(self)
+        job, rcpt = _get_active_receipt_job_and_text(self)
+        if not job:
+            return
+        import urllib.parse, webbrowser
+        phone_clean = "".join(ch for ch in str(job.get("phone", "")) if ch.isdigit())
+        if phone_clean.startswith("0"):
+            phone_clean = "234" + phone_clean[1:]
+        wa_msg = urllib.parse.quote(f"⚡ *SUNVOLT TECH HUB — KASHERE*\nTicket: #{job['ticket_id']}\nDevice: {job['model']}\nStatus: COMPLETED ✅ (30-Day Warranty Active)\nTotal: ₦{float(job.get('quote',0)):,.0f} | Deposit: ₦{float(job.get('deposit',0)):,.0f}\nBalance Due: ₦{max(0.0, float(job.get('quote',0))-float(job.get('deposit',0))):,.0f}")
+        for top in self.winfo_children():
+            if isinstance(top, ctk.CTkToplevel) and "RECEIPT PREVIEW" in top.title():
+                ctk.CTkButton(top, text="💬 Send Receipt on WhatsApp", width=210, height=34, fg_color="#25D366", text_color="black", font=ctk.CTkFont(weight="bold"), command=lambda: webbrowser.open(f"https://wa.me{phone_clean}?text={wa_msg}")).pack(pady=(0, 8))
+
+    # 2. Export Full Shop Financial Report to Excel (.csv) in Admin Dashboard
+    _orig_admin = SunvoltApp.show_admin_view
+    def new_show_admin_view(self):
+        _orig_admin(self)
+        if getattr(self, 'user_role', '') == "admin":
+            ctk.CTkButton(self.main_frame, text="📊 Export Full Financial Report (Excel / CSV)", width=310, height=38, fg_color="#00E676", text_color="black", font=ctk.CTkFont(weight="bold"), command=self.action_export_excel_report).pack(anchor="w", padx=35, pady=12)
+
+    def new_export_excel_report(self):
+        import csv
+        from tkinter import filedialog
+        path = filedialog.asksaveasfilename(defaultextension=".csv", initialfile="Sunvolt_Financial_Report.csv", filetypes=[("Excel CSV", "*.csv")])
+        if not path:
+            return
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Ticket ID", "Customer", "Phone", "NIN", "Device", "Fault", "Total Quote (NGN)", "Deposit (NGN)", "Balance (NGN)", "Status"])
+            for j in SUNVOLT_HISTORY_ARCHIVE + SUNVOLT_JOB_QUEUE:
+                q = float(j.get("quote", 0))
+                d = float(j.get("deposit", 0))
+                writer.writerow([j.get("ticket_id"), j.get("customer"), j.get("phone"), j.get("nin", "N/A"), j.get("model"), j.get("fault"), q, d, max(0.0, q - d), j.get("status")])
+        ctk.CTkLabel(self.main_frame, text=f"✅ An fitar da rahoton Excel zuwa: {path}", font=ctk.CTkFont(size=12, weight="bold"), text_color="#64FFDA").pack(anchor="w", padx=35)
+
+    SunvoltApp.action_trigger_print_view = new_preview_with_whatsapp_and_warranty
+    SunvoltApp.show_admin_view = new_show_admin_view
+    SunvoltApp.action_export_excel_report = new_export_excel_report
+    _orig_eng_sub = SunvoltApp.switch_engineer_subpage
+    def new_eng_sub_with_wa(self, page_key):
+        _orig_eng_sub(self, page_key)
+        if page_key == "history" and hasattr(self, 'lbl_print_status'):
+            parent_col = self.lbl_print_status.master
+            ctk.CTkButton(parent_col, text="💬 Send Receipt on WhatsApp", width=220, height=34, fg_color="#25D366", text_color="black", font=ctk.CTkFont(weight="bold"), command=self.action_send_whatsapp_direct).pack(anchor="w", pady=(2, 6), before=self.lbl_print_status)
+
+    def new_send_whatsapp_direct(self):
+        job, rcpt = _get_active_receipt_job_and_text(self)
+        if not job:
+            if hasattr(self, 'lbl_print_status'):
+                self.lbl_print_status.configure(text="⚠️ Zaɓi aiki a cikin History da farko!", text_color="#FF9100")
+            return
+        import urllib.parse, webbrowser
+        phone_clean = "".join(ch for ch in str(job.get("phone", "")) if ch.isdigit())
+        if phone_clean.startswith("0"):
+            phone_clean = "234" + phone_clean[1:]
+        wa_msg = urllib.parse.quote(f"⚡ *SUNVOLT TECH HUB — KASHERE*\nTicket: #{job['ticket_id']}\nDevice: {job['model']}\nStatus: COMPLETED ✅ (30-Day Warranty)\nTotal: ₦{float(job.get('quote',0)):,.0f} | Deposit: ₦{float(job.get('deposit',0)):,.0f}\nBalance Due: ₦{max(0.0, float(job.get('quote',0))-float(job.get('deposit',0))):,.0f}")
+        webbrowser.open(f"https://wa.me{phone_clean}?text={wa_msg}")
+
+    SunvoltApp.switch_engineer_subpage = new_eng_sub_with_wa
+    SunvoltApp.action_send_whatsapp_direct = new_send_whatsapp_direct
+    # ==================== FULL STARTUP & SIDEBAR PASSWORD PROTECTION ====================
+    _prev_init_sec = SunvoltApp.__init__
+    def secure_startup_init(self, *args, **kwargs):
+        _prev_init_sec(self, *args, **kwargs)
+        # Force app to always start in locked Receptionist mode!
+        self.user_role = "receptionist"
+        if hasattr(self, 'role_menu'):
+            self.role_menu.set("Receptionist")
+        self.show_reception_view()
+
+    def verify_role_pin(self, target_role):
+        if getattr(self, 'user_role', '') == target_role:
+            return True
+        if target_role == "admin":
+            req_pin = str(SUNVOLT_API_CONFIG.get("admin_pin", "9999"))
+            title_lbl = "👑 ADMIN (SHOP OWNER) SECURITY"
+        else:
+            req_pin = str(SUNVOLT_API_CONFIG.get("eng_pin", "2222"))
+            title_lbl = "🛠️ SENIOR ENGINEER SECURITY"
+        dlg = ctk.CTkInputDialog(text=f"🔐 Shigar da Password (PIN) don shiga {title_lbl}:", title="SUNVOLT LOCK")
+        entered = dlg.get_input()
+        if entered is not None and entered.strip() == req_pin:
+            self.user_role = target_role
+            if hasattr(self, 'role_menu'):
+                self.role_menu.set("Admin (Shop Owner)" if target_role == "admin" else "Senior Engineer")
+            return True
+        if hasattr(self, 'role_menu'):
+            self.role_menu.set("Receptionist")
+        self.user_role = "receptionist"
+        return False
+
+    def secure_change_role(self, choice):
+        if "Receptionist" in choice:
+            self.user_role = "receptionist"
+            self.show_reception_view()
+        elif "Engineer" in choice:
+            if verify_role_pin(self, "engineer"):
+                self.show_engineer_view()
+            else:
+                self.show_reception_view()
+        elif "Admin" in choice:
+            if verify_role_pin(self, "admin"):
+                self.show_admin_view()
+            else:
+                self.show_reception_view()
+
+    _orig_eng_view = SunvoltApp.show_engineer_view
+    def secure_eng_view(self):
+        if getattr(self, 'user_role', '') not in ("engineer", "admin"):
+            if not verify_role_pin(self, "engineer"):
+                return
+        _orig_eng_view(self)
+
+    _orig_adm_view = SunvoltApp.show_admin_view
+    def secure_adm_view(self):
+        if getattr(self, 'user_role', '') != "admin":
+            if not verify_role_pin(self, "admin"):
+                return
+        _orig_adm_view(self)
+
+    _orig_set_view = SunvoltApp.show_settings_view
+    def secure_set_view(self):
+        if getattr(self, 'user_role', '') != "admin":
+            if not verify_role_pin(self, "admin"):
+                return
+        _orig_set_view(self)
+
+    SunvoltApp.__init__ = secure_startup_init
+    SunvoltApp.change_user_role = secure_change_role
+    SunvoltApp.show_engineer_view = secure_eng_view
+    SunvoltApp.show_admin_view = secure_adm_view
+    SunvoltApp.show_settings_view = secure_set_view
+    # ==================== CHANGE PASSWORDS (PIN) IN SETTINGS ====================
+    _orig_set_ui = SunvoltApp.show_settings_view
+    def new_settings_with_pin_change(self):
+        _orig_set_ui(self)
+        if getattr(self, 'user_role', '') != "admin":
+            return
+        pin_box = ctk.CTkFrame(self.main_frame, fg_color="#1B2631", corner_radius=10)
+        pin_box.pack(fill="x", padx=35, pady=(10, 15))
+        ctk.CTkLabel(pin_box, text="🔐 CANZA LAMBOBIN SIRRI (SECURITY PASSWORDS / PIN)", font=ctk.CTkFont(size=14, weight="bold"), text_color="#FF5252").pack(anchor="w", padx=18, pady=(10, 6))
+
+        row = ctk.CTkFrame(pin_box, fg_color="transparent")
+        row.pack(anchor="w", padx=18, pady=(0, 12))
+
+        ctk.CTkLabel(row, text="Engineer PIN:", font=ctk.CTkFont(size=12, weight="bold")).pack(side="left", padx=(0, 6))
+        self.entry_new_eng_pin = ctk.CTkEntry(row, width=110)
+        self.entry_new_eng_pin.insert(0, str(SUNVOLT_API_CONFIG.get("eng_pin", "2222")))
+        self.entry_new_eng_pin.pack(side="left", padx=(0, 16))
+
+        ctk.CTkLabel(row, text="Admin PIN:", font=ctk.CTkFont(size=12, weight="bold")).pack(side="left", padx=(0, 6))
+        self.entry_new_admin_pin = ctk.CTkEntry(row, width=110)
+        self.entry_new_admin_pin.insert(0, str(SUNVOLT_API_CONFIG.get("admin_pin", "9999")))
+        self.entry_new_admin_pin.pack(side="left", padx=(0, 16))
+
+        ctk.CTkButton(row, text="💾 Save New Passwords", width=175, height=34, fg_color="#00E676", text_color="black", font=ctk.CTkFont(weight="bold"), command=self.action_save_custom_pins).pack(side="left")
+        self.lbl_pin_saved = ctk.CTkLabel(pin_box, text="", font=ctk.CTkFont(size=12, weight="bold"), text_color="#00E676")
+        self.lbl_pin_saved.pack(anchor="w", padx=18, pady=(0, 8))
+
+    def new_save_custom_pins(self):
+        e_pin = self.entry_new_eng_pin.get().strip()
+        a_pin = self.entry_new_admin_pin.get().strip()
+        if not e_pin or not a_pin:
+            self.lbl_pin_saved.configure(text="⚠️ Kada ka bar akwatin PIN fanko!", text_color="#FF9100")
+            return
+        SUNVOLT_API_CONFIG["eng_pin"] = e_pin
+        SUNVOLT_API_CONFIG["admin_pin"] = a_pin
+        save_sunvolt_local_data()
+        self.lbl_pin_saved.configure(text=f"✅ An adana sababbin Passwords! (Engineer PIN: {e_pin} | Admin PIN: {a_pin})", text_color="#00E676")
+
+    SunvoltApp.show_settings_view = new_settings_with_pin_change
+    SunvoltApp.action_save_custom_pins = new_save_custom_pins
+    # ==================== UNIVERSAL LIVE BILINGUAL SWITCHER (HA <-> EN) ====================
+    def universal_toggle_language(self, lang):
+        self.current_lang = lang
+        is_en = (lang == "EN")
+        t = LANG_TEXT[lang]
+
+        # 1. Update All Sidebar Navigation Buttons
+        if hasattr(self, 'btn_nav_rec'):
+            self.btn_nav_rec.configure(text=t["nav_rec"])
+        if hasattr(self, 'btn_nav_eng'):
+            self.btn_nav_eng.configure(text=t["nav_eng"])
+        if hasattr(self, 'btn_nav_parts'):
+            self.btn_nav_parts.configure(text=t["nav_parts"])
+        if hasattr(self, 'btn_nav_imei'):
+            self.btn_nav_imei.configure(text=t["nav_imei"])
+        if hasattr(self, 'btn_nav_admin'):
+            self.btn_nav_admin.configure(text=t["nav_admin"])
+        if hasattr(self, 'btn_nav_settings'):
+            self.btn_nav_settings.configure(text="⚙️ API & SMS Settings" if is_en else "⚙️ Saita API & SMS")
+        if hasattr(self, 'btn_nav_help'):
+            self.btn_nav_help.configure(text="📖 User Guide & AI Help" if is_en else "📖 Jagora & AI Help")
+
+        # 2. Refresh Current Active Page Immediately in the Selected Language
+        active = getattr(self, 'active_page_tracker', 'reception')
+        if active == "reception":
+            self.show_reception_view()
+        elif active == "engineer":
+            self.show_engineer_view()
+        elif active == "parts":
+            self.show_marketplace_view()
+        elif active == "imei":
+            self.show_imei_view()
+        elif active == "admin":
+            self.show_admin_view()
+        elif active == "settings":
+            self.show_settings_view()
+        elif active == "guide":
+            self.show_user_guide_view()
+
+    # Track which page is currently open so language switch refreshes it live
+    def _wrap_page_tracker(fn, page_name):
+        def _inner(self, *a, **kw):
+            self.active_page_tracker = page_name
+            fn(self, *a, **kw)
+            if getattr(self, 'current_lang', 'HA') == "EN":
+                _translate_visible_widgets_to_en(self.main_frame)
+        return _inner
+
+    def _translate_visible_widgets_to_en(parent):
+        ha_to_en = {
+            "Bincika Kwastoma (Ticket No. ko NIN):": "Customer Lookup (Ticket No. or NIN):",
+            "Fito da Bayanai": "Lookup Info",
+            "Karɓar Deposit (Bayan Engineer Ya Sa Farashi):": "Collect Deposit (After Engineer Quote):",
+            "Zaɓi Nau'in Na'ura (Hardware Mode):": "Select Hardware Mode:",
+            "Cikakken Rahoton AI & Matakan Gyara:": "Full AI Diagnosis & Repair Steps:",
+            "CANZA LAMBOBIN SIRRI (SECURITY PASSWORDS / PIN)": "CHANGE SECURITY PASSWORDS (PIN)",
+            "Send Receipt on WhatsApp": "Send Receipt on WhatsApp",
+            "Export Full Financial Report (Excel / CSV)": "Export Full Financial Report (Excel / CSV)",
+            "Zaɓi wani kaya daga jerin sama don tsaida masa farashi ko ƙin karɓa.": "Select a pending device above to set a repair quote or reject.",
+            "Reject (Ba Zai Yiwu Ba)": "Reject Device"
+        }
+        for child in parent.winfo_children():
+            try:
+                if isinstance(child, (ctk.CTkLabel, ctk.CTkButton)):
+                    txt = child.cget("text")
+                    for ha_k, en_v in ha_to_en.items():
+                        if ha_k in txt:
+                            child.configure(text=txt.replace(ha_k, en_v))
+                elif isinstance(child, ctk.CTkEntry):
+                    ph = child.cget("placeholder_text") or ""
+                    if "Shigar da Ticket" in ph:
+                        child.configure(placeholder_text="Enter Ticket # (SV-101) or NIN...")
+                    elif "Lambar NIN" in ph:
+                        child.configure(placeholder_text="6. NIN Number (Optional — for security & lookup)...")
+                    elif "Aunin Multimeter" in ph:
+                        child.configure(placeholder_text="Multimeter Reading or Symptom (e.g. 0V output, short)...")
+                    elif "Kuɗin Gyara" in ph:
+                        child.configure(placeholder_text="Repair Quote (₦)...")
+            except Exception:
+                pass
+            _translate_visible_widgets_to_en(child)
+
+    SunvoltApp.toggle_language = universal_toggle_language
+    SunvoltApp.show_reception_view = _wrap_page_tracker(SunvoltApp.show_reception_view, "reception")
+    SunvoltApp.show_engineer_view = _wrap_page_tracker(SunvoltApp.show_engineer_view, "engineer")
+    SunvoltApp.show_marketplace_view = _wrap_page_tracker(SunvoltApp.show_marketplace_view, "parts")
+    SunvoltApp.show_imei_view = _wrap_page_tracker(SunvoltApp.show_imei_view, "imei")
+    SunvoltApp.show_admin_view = _wrap_page_tracker(SunvoltApp.show_admin_view, "admin")
+    SunvoltApp.show_settings_view = _wrap_page_tracker(SunvoltApp.show_settings_view, "settings")
+   # SunvoltApp.show_user_guide_view = _wrap_page_tracker(SunvoltApp.show_user_guide_view, "guide")
+
     _orig_init = SunvoltApp.__init__
     def new_init(self, *args, **kwargs):
         _orig_init(self, *args, **kwargs)
@@ -1694,10 +2161,115 @@ def _sv_patch_sunvolt_v2026():
         self.txt_user_manual.insert("1.0", f"\n================ AMSAR TAMBAYARKA ================\n{ans}\n==================================================\n\n")
 
     SunvoltApp.__init__ = new_init
-    SunvoltApp.show_user_guide_view = new_show_user_guide
+    if not hasattr(SunvoltApp, 'show_user_guide_view'):
+        SunvoltApp.show_user_guide_view = lambda self: self.show_reception_view()
+    SunvoltApp.show_user_guide_view = _wrap_page_tracker(SunvoltApp.show_user_guide_view, "guide")
+
     SunvoltApp.action_ask_manual_help = new_ask_help
 
 _sv_patch_sunvolt_v2026()
+def _sv_final_guide_and_lang_fix():
+    def real_show_user_guide(self):
+        self.active_page_tracker = "guide"
+        self.clear_main_frame()
+        is_en = (getattr(self, 'current_lang', 'HA') == "EN")
+        title_txt = "📖 SUNVOLT TECH HUB — COMPLETE USER GUIDE & AI ASSISTANT" if is_en else "📖 SUNVOLT TECH HUB — CIKAKKEN LITTAFIN JAGORA & AI HELP"
+        ph_txt = "🔍 Ask anything (e.g. Deposit, Sun King, PCB Zoom, PIN, WhatsApp)..." if is_en else "🔍 Tambayi komai game da manhajar (misali: Deposit, Sun King, PCB Zoom, PIN)..."
+        btn_txt = "💡 Ask Guide" if is_en else "💡 Nemi Bayani"
+
+        ctk.CTkLabel(self.main_frame, text=title_txt, font=ctk.CTkFont(size=18, weight="bold"), text_color="#64FFDA").pack(anchor="w", padx=30, pady=(16, 6))
+        ask_bar = ctk.CTkFrame(self.main_frame, fg_color="#111111", corner_radius=8)
+        ask_bar.pack(fill="x", padx=30, pady=(0, 10))
+        self.entry_help_query = ctk.CTkEntry(ask_bar, width=500, placeholder_text=ph_txt)
+        self.entry_help_query.pack(side="left", padx=12, pady=12)
+        ctk.CTkButton(ask_bar, text=btn_txt, width=170, height=36, fg_color="#00E676", text_color="black", font=ctk.CTkFont(weight="bold"), command=self.action_ask_manual_help).pack(side="left", padx=6, pady=12)
+
+        self.txt_user_manual = tk.Text(self.main_frame, bg="#111111", fg="#E0F2F1", font=("Consolas", 10), wrap="word", bd=10, relief="flat")
+        self.txt_user_manual.pack(fill="both", expand=True, padx=30, pady=(0, 18))
+
+        guide_en = (
+            "=========================================================================\n"
+            "          ⚡ SUNVOLT TECH HUB — COMPLETE USER MANUAL (ENGLISH) ⚡         \n"
+            "=========================================================================\n\n"
+            "1. 🛎️ RECEPTION (INTAKE, NIN LOOKUP & POST-QUOTE DEPOSIT):\n"
+            "   • Register Device (Left): Enter Customer Name, Phone, Device, IMEI, Fault & NIN.\n"
+            "   • Lookup Customer (Right): Type Ticket # (e.g. SV-101) or NIN -> 'Lookup Info'.\n"
+            "   • Collect Deposit (Right): After Engineer sets price ('APPROVED'), select the\n"
+            "     job, choose '✅ Paid Deposit' (or '❌ No Deposit'), enter amount -> '💾 Save'.\n\n"
+            "2. 🛠️ SENIOR ENGINEER LAB (PIN: 2222 — 5 WORKSPACE TABS):\n"
+            "   • Tab 1 (Pending): Click a job to lock it, enter quote -> 'Approve' or 'Reject'.\n"
+            "   • Tab 2 (AI Diagnostics): Pick Mode (Phone, Laptop, Inv, CC, SunKing, Sew, Univ),\n"
+            "     upload board photo + multimeter probe -> 'AI Scan' & '🔍 Zoom Scan'.\n"
+            "   • Tab 3 (IC Programmer): Search IC (W25Q64) or Phone (iPhone/Samsung) -> 'Detect'.\n"
+            "   • Tab 4 (Receipts): Preview, Export PDF, Print, or '💬 Send Receipt on WhatsApp'.\n"
+            "   • Tab 5 (PCB Studio): Generate any board -> '🔍 Zoom' (2000x1400) or 'Export PCB'.\n\n"
+            "3. 👑 ADMIN & SETTINGS (PIN: 9999):\n"
+            "   • View Net Profit, Export Excel/CSV Report, set API Keys & Change Passwords.\n"
+        )
+        guide_ha = (
+            "=========================================================================\n"
+            "          ⚡ SUNVOLT TECH HUB — CIKAKKEN LITTAFIN JAGORA (HAUSA) ⚡         \n"
+            "=========================================================================\n\n"
+            "1. 🛎️ RECEPTION (KARƁAR KAYA, BINCIKEN NIN & DEPOSIT):\n"
+            "   • Rajista (Hagu): Shigar da Sunan Kwastoma, Lambar Waya, Na'ura, IMEI, Matsala & NIN.\n"
+            "   • Binciken Kwastoma (Dama): Rubuta Ticket # (SV-101) ko NIN -> 'Fito da Bayanai'.\n"
+            "   • Karɓar Deposit (Dama): Bayan Engineer ya sa farashi ('APPROVED'), danna aikin,\n"
+            "     zaɓi '✅ Paid Deposit' (ko '❌ No Deposit'), rubuta kuɗi -> '💾 Save'.\n\n"
+            "2. 🛠️ SENIOR ENGINEER LAB (PIN: 2222 — SHAFUKA 5):\n"
+            "   • Tab 1 (Pending): Danna kaya don kulle shi, rubuta kuɗin gyara -> 'Approve' ko 'Reject'.\n"
+            "   • Tab 2 (AI Diagnostics): Zaɓi Mode (Phone, Laptop, Inv, CC, SunKing, Sew, Univ),\n"
+            "     ɗora hoton kati + aunin Multimeter -> 'AI Scan' & '🔍 Zoom Scan'.\n"
+            "   • Tab 3 (IC Programmer): Rubuta lambar IC (W25Q64) ko waya -> 'Detect' don Pinout.\n"
+            "   • Tab 4 (Receipts): Duba rasiti, Export PDF, Print, ko '💬 Send Receipt on WhatsApp'.\n"
+            "   • Tab 5 (PCB Studio): Zana kowane board -> '🔍 Zoom' (2000x1400) ko 'Export PCB'.\n\n"
+            "3. 👑 ADMIN & SETTINGS (PIN: 9999):\n"
+            "   • Duba Riba, fitar da rahoton Excel/CSV, saka API Keys & Canza Passwords.\n"
+        )
+        self.txt_user_manual.insert(tk.END, guide_en if is_en else guide_ha)
+
+    def real_ask_help(self):
+        q = self.entry_help_query.get().strip()
+        if not q:
+            return
+        ql = q.lower()
+        if "deposit" in ql or "kudi" in ql:
+            ans = "💰 DEPOSIT: Bayan Engineer ya sa farashi ('APPROVED'), danna na'urar a gefen dama na Reception, zaɓi '✅ Paid Deposit' -> '💾 Save'."
+        elif "sun king" in ql or "sunking" in ql:
+            ans = "🔋 SUN KING: Shiga Tab 2 (AI Diagnostics), danna '🔋 Sun King', ɗora hoton kati + aunin 3.2V -> 'AI Scan'."
+        elif "pin" in ql or "password" in ql:
+            ans = "🔐 PASSWORDS: Engineer PIN = 2222 | Admin PIN = 9999. Za ka iya canza su a cikin Settings."
+        elif "whatsapp" in ql or "receipt" in ql:
+            ans = "💬 WHATSAPP RECEIPT: Shiga Tab 4 (Receipts), danna sunan kwastoma -> '💬 Send Receipt on WhatsApp'."
+        else:
+            ans = f"💡 BAYANI GAME DA '{q.upper()}': Duba cikakken tsarin shafuka da ke ƙasa!"
+        self.txt_user_manual.insert("1.0", f"\n================ AMSAR TAMBAYARKA ================\n{ans}\n==================================================\n\n")
+
+    def real_toggle_lang(self, lang):
+        self.current_lang = lang
+        is_en = (lang == "EN")
+        t = LANG_TEXT[lang]
+        for attr, key in [('btn_nav_rec', 'nav_rec'), ('btn_nav_eng', 'nav_eng'), ('btn_nav_parts', 'nav_parts'), ('btn_nav_imei', 'nav_imei'), ('btn_nav_admin', 'nav_admin')]:
+            if hasattr(self, attr):
+                getattr(self, attr).configure(text=t[key])
+        if hasattr(self, 'btn_nav_settings'):
+            self.btn_nav_settings.configure(text="⚙️ API & SMS Settings" if is_en else "⚙️ Saita API & SMS")
+        if hasattr(self, 'btn_nav_help'):
+            self.btn_nav_help.configure(text="📖 User Guide & AI Help" if is_en else "📖 Jagora & AI Help")
+        act = getattr(self, 'active_page_tracker', 'reception')
+        if act == "engineer": self.show_engineer_view()
+        elif act == "parts": self.show_marketplace_view()
+        elif act == "imei": self.show_imei_view()
+        elif act == "admin": self.show_admin_view()
+        elif act == "settings": self.show_settings_view()
+        elif act == "guide": self.show_user_guide_view()
+        else: self.show_reception_view()
+
+    SunvoltApp.show_user_guide_view = real_show_user_guide
+    SunvoltApp.action_ask_manual_help = real_ask_help
+    SunvoltApp.toggle_language = real_toggle_lang
+
+_sv_final_guide_and_lang_fix()
+
 
 
 if __name__ == "__main__":
